@@ -1,0 +1,115 @@
+name: Android build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: android-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build and test Android app
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@v7
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          accept-android-sdk-licenses: true
+          packages: |
+            platform-tools
+            platforms;android-35
+            build-tools;35.0.0
+            emulator
+            system-images;android-35;google_apis;x86_64
+
+      - name: Set up Gradle 8.9
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: '8.9'
+          cache-provider: basic
+
+      # The checkout currently has no Wrapper JAR. Generate the official
+      # Gradle 8.9 wrapper on the runner, then use it for all build tasks.
+      - name: Generate Gradle wrapper
+        run: >-
+          gradle :wrapper
+          --gradle-version=8.9
+          --distribution-type=bin
+          --gradle-distribution-sha256-sum=d725d707bfabd4dfdc958c624003b3c80accc03f7037b5122c4b1d0ef15cecab
+
+      - name: Run unit tests, lint, checks, and assemble debug APK
+        run: ./gradlew --no-daemon clean testDebugUnitTest lintDebug assembleDebug check
+
+      - name: Run instrumented Android tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          script: ./gradlew --no-daemon connectedDebugAndroidTest
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: parallel-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload generated Gradle wrapper files for persistence
+        if: github.event_name != 'pull_request' && github.ref_type == 'branch'
+        uses: actions/upload-artifact@v7
+        with:
+          name: generated-gradle-wrapper
+          path: |
+            gradlew
+            gradlew.bat
+            gradle/wrapper/gradle-wrapper.jar
+            gradle/wrapper/gradle-wrapper.properties
+          if-no-files-found: error
+          retention-days: 1
+
+  persist-wrapper:
+    name: Commit generated Gradle wrapper
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref_type == 'branch'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@v7
+
+      - name: Download generated wrapper files
+        uses: actions/download-artifact@v8
+        with:
+          name: generated-gradle-wrapper
+          path: .
+
+      - name: Commit wrapper when missing or changed
+        run: |
+          git add -- gradlew gradlew.bat gradle/wrapper/gradle-wrapper.jar gradle/wrapper/gradle-wrapper.properties
+          if git diff --cached --quiet; then
+            echo "Gradle wrapper is already up to date."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Add Gradle 8.9 wrapper"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
