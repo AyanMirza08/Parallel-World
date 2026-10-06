@@ -38,7 +38,7 @@ class LocalWorldGeneratorTest {
 
         assertTrue(world.alternateTimelineSummary.contains("never became a single dominant rail hub"))
         assertTrue(world.government.system.contains("district"))
-        assertTrue(world.economy.sectors.contains("regional logistics"))
+        assertTrue(world.economy.majorSectors.contains("regional logistics"))
         assertFalse(world.alternateTimelineSummary.contains("principal interchange"))
         assertFalse(world.alternateTimelineSummary.contains("dense network of lines"))
         assertEquals(3, world.importantLocations.size)
@@ -192,3 +192,4 @@ class LocalWorldGeneratorTest {
         assertTrue(worlds.map { it.strangeAnomalies.first().classification }.toSet().size > 1)
     }
 }
+
