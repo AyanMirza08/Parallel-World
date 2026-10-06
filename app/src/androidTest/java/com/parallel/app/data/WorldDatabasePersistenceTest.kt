@@ -28,17 +28,23 @@ class WorldDatabasePersistenceTest {
         )
 
         try {
-            Room.databaseBuilder(context, WorldDatabase::class.java, databaseName)
-                .build().use { database ->
-                    database.savedWorldDao().upsert(world)
-                }
+            val initialDatabase = Room.databaseBuilder(context, WorldDatabase::class.java, databaseName)
+                .build()
+            try {
+                initialDatabase.savedWorldDao().upsert(world)
+            } finally {
+                initialDatabase.close()
+            }
 
-            Room.databaseBuilder(context, WorldDatabase::class.java, databaseName)
-                .build().use { database ->
-                    assertEquals(listOf(world), database.savedWorldDao().observeAll().first())
-                    database.savedWorldDao().deleteById(world.id)
-                    assertEquals(emptyList<SavedWorldEntity>(), database.savedWorldDao().observeAll().first())
-                }
+            val reopenedDatabase = Room.databaseBuilder(context, WorldDatabase::class.java, databaseName)
+                .build()
+            try {
+                assertEquals(listOf(world), reopenedDatabase.savedWorldDao().observeAll().first())
+                reopenedDatabase.savedWorldDao().deleteById(world.id)
+                assertEquals(emptyList<SavedWorldEntity>(), reopenedDatabase.savedWorldDao().observeAll().first())
+            } finally {
+                reopenedDatabase.close()
+            }
         } finally {
             context.deleteDatabase(databaseName)
         }
