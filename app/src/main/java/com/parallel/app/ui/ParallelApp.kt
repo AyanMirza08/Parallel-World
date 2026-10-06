@@ -161,8 +161,12 @@ fun ParallelApp() {
                     onOpenSection = { section -> screen = section.toAppScreen() }
                 )
             }
-            AppScreen.OVERVIEW -> selectedWorld?.let { WorldSectionScreen(it, WorldSection.OVERVIEW) { screen = AppScreen.WORLD } }
-            AppScreen.TIMELINE -> selectedWorld?.let { WorldSectionScreen(it, WorldSection.TIMELINE) { screen = AppScreen.WORLD } }
+            AppScreen.OVERVIEW -> selectedWorld?.let { world ->
+                WorldSectionScreen(world, WorldSection.OVERVIEW, onBack = { screen = AppScreen.WORLD })
+            }
+            AppScreen.TIMELINE -> selectedWorld?.let { world ->
+                WorldSectionScreen(world, WorldSection.TIMELINE, onBack = { screen = AppScreen.WORLD })
+            }
             AppScreen.LOCATIONS -> selectedWorld?.let { world ->
                 WorldSectionScreen(
                     world = world,
@@ -465,3 +469,4 @@ private fun WorldDraftCard(world: ParallelWorld, onClick: () -> Unit, onDelete: 
         }
     }
 }
+
